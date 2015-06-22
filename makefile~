@@ -1,10 +1,10 @@
 main:
 	@clear
-	@mpicc hotpotato.c -o hotpotato
+	@u++ exp.cpp -o exp -multi
 	@echo "Compilación exitosa..."
-	@mpirun -np 5 ./hotpotato -t 10
+	@./exp -i smalldna.txt -o output.txt -h 10 -L 20 -l 20
 
 clean:
 	@echo "Limpiando..."	
-	@rm 	hotpotato
+	@rm exp output.txt
 

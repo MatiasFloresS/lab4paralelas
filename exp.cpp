@@ -1,10 +1,12 @@
 #include <fstream>
 #include <iostream>
 #include <uC++.h>
+#include <cstdlib>	
 #include <string>
 #include <getopt.h>
 using namespace std;
 
+string reconocedor(string re);
 
 _Monitor BoundedBuffer {
 	uCondition full, empty;
@@ -87,12 +89,12 @@ _Task Recognizer{
 	BoundedBuffer2 &Buffer2; 
 
 public:
-	recognizer( BoundedBuffer &buf , BoundedBuffer2 &buf2 ) : Buffer( buf ) , Buffer2( buf2 ) {}
+	Recognizer( BoundedBuffer &buf , BoundedBuffer2 &buf2 ) : Buffer( buf ) , Buffer2( buf2 ) {}
 
 private:
 	void main(){
 		string item;
-		string line
+		string line;
 		for(;;){
 			item = Buffer.remove();
 			if (item == "T") break;
@@ -103,7 +105,7 @@ private:
 };
 
 
-Task Writer{
+_Task Writer{
 	BoundedBuffer2 &Buffer2;
 	const char* output = NULL;
 
@@ -171,7 +173,7 @@ void uMain::main(){
 				break;
 		}
 	}
-
+ 	cout << "llego aca" << endl;
 	
 	BoundedBuffer buf( Largo_buffer );
 	BoundedBuffer2 buf2( Largo_buffer2 );
@@ -180,6 +182,7 @@ void uMain::main(){
 	Recognizer *rec[NoOfRec];
 	Writer *wri[NoOfWriter];
 
+	cout << "aca" << endl;
 	for (int i = 0; i < NoOfWriter; i++){
 		wri[i] = new Writer(buf2, outFile);
 	}
@@ -217,7 +220,7 @@ void uMain::main(){
 
 
 
-void reconocedor(string linea){
+string reconocedor(string linea){
 
 	int estado_actual = 0 ;
 	bool estado(true);
@@ -299,9 +302,11 @@ void reconocedor(string linea){
 		}
 		if (estado_actual >= 0 && estado_actual <= 5){
 			cout << " no"<< endl;
+			return linea + " no";
 		}
 		else {
 			cout << " si"<< endl;
+			return linea + " si";
 		}
 		estado=false;
 	}
