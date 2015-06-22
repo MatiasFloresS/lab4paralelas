@@ -7,26 +7,28 @@
 #include <getopt.h>
 using namespace std;
 
-string reconocedor(string re);
+#define FIRST_ELEMENT 0
+
+string recognizer(string line);
 
 _Monitor BoundedBuffer{
 	uCondition full, empty;
 	int front, back, count;
-	int tamanio;
+	int Largo_buffer;
 	string *array;
-	
 
 public:
-	BoundedBuffer(int s) : front(0), back(0), count(0), tamanio(s), array(new string[tamanio]) {}
+	BoundedBuffer(): front(0), back(0), count(0) {}
+	BoundedBuffer(int largo) : front(0), back(0), count(0), Largo_buffer(largo), array(new string[Largo_buffer]) {}
 	~BoundedBuffer(){
   		delete [] array;
   	};
 	_Nomutex int query() { return count; }
 
 	void insert(string elem) {
-		if (count == tamanio) empty.wait();
+		if (count == Largo_buffer) empty.wait();
 			array[back] = elem;
-			back = (back+1)% tamanio;
+			back = (back+1)% Largo_buffer;
 			count += 1;
 			full.signal();
 	}
@@ -34,59 +36,30 @@ public:
 	string remove() {
 		if (count == 0) full.wait();
 			string elem = array[front];
-			front = (front+1)%tamanio;
+			front = (front+1)%Largo_buffer;
 			count -= 1;
 			empty.signal();
 			return elem;
 	}
 };
-
-_Monitor BoundedBuffer2 {
-	uCondition full, empty;
-	int front, back, count;
-	int tamanio;
-	string *array;
-	
-public:
-	BoundedBuffer2(int s) : front(0), back(0), count(0), tamanio(s), array(new string[tamanio])  {}
-	~BoundedBuffer2(){
-  		delete [] array;
-  	};
-	_Nomutex int query() { return count; }
-
-	void insert(string elem) {
-		if (count == tamanio) empty.wait();
-			array[back] = elem;
-			back = (back+1)% tamanio;
-			count += 1;
-			full.signal();
-	}
-
-	string remove() {
-		if (count == 0) full.wait();
-			string elem = array[front];
-			front = (front+1)%tamanio;
-			count -= 1;
-			empty.signal();
-			return elem;
-	}
-};
-
 
 _Task Producer{
 	BoundedBuffer &Buffer;
-	const char* input = NULL;
+	char *input;
 
 public:
-	Producer(BoundedBuffer &buf, const char* in) : Buffer(buf), input(in) {}
+	Producer(BoundedBuffer &buffer, char *input) : Buffer(buffer), input(input) {}
 
 private:
 	void main(){
-		ifstream myfile;
-		myfile.open(input, ios::in);
 		string line;
-		while(getline(myfile,line)){
-			Buffer.insert( line );
+		ifstream myfile(input);
+		if (myfile){
+			while (getline(myfile,line)){
+				if (line != ""){
+					Buffer.insert(line);
+				}
+			}
 		}
 		myfile.close();
 	}
@@ -94,19 +67,18 @@ private:
 
 _Task Recognizer{
 	BoundedBuffer &Buffer; 
-	BoundedBuffer2 &Buffer2; 
+	BoundedBuffer &Buffer2; 
 
 public:
-	Recognizer( BoundedBuffer &buf , BoundedBuffer2 &buf2 ) : Buffer( buf ) , Buffer2( buf2 ) {}
+	Recognizer( BoundedBuffer &buffer , BoundedBuffer &buffer2 ) : Buffer( buffer ), Buffer2( buffer2 ) {}
 
 private:
 	void main(){
-		string item;
-		string line;
-		for(;;){
+		string item,line;
+		while(true){
 			item = Buffer.remove();
-			if (item.compare("T") == 0) break;
-			line = reconocedor(item);
+			if (item == "-1") break;
+			line = recognizer(item);
 			Buffer2.insert(line);
 		}
 	}
@@ -114,11 +86,11 @@ private:
 
 
 _Task Writer{
-	BoundedBuffer2 &Buffer2;
-	const char* output = NULL;
+	BoundedBuffer &Buffer2;
+	char* output;
 
 public:
-	Writer(BoundedBuffer2 &buf2, const char* out) : Buffer2(buf2), output(out) {}
+	Writer(BoundedBuffer &buffer2, char* output) : Buffer2(buffer2), output(output) {}
 
 private:
 	void main(){
@@ -126,9 +98,9 @@ private:
 		ofstream myfileOut(output, ios::out);
 
 		if (myfileOut.is_open()){
-			for(;;){
+			while(true){
 				line = Buffer2.remove();
-				if (line == "T") break;
+				if (line == "-1") break;
 				myfileOut << line <<endl;
 			}
 		}
@@ -138,9 +110,9 @@ private:
 
 void uMain::main(){
 
-	int c, Largo_buffer = 0, Largo_buffer2;
-	const char* inFile = NULL;
-	const char* outFile = NULL;
+	int c, Largo_buffer, Largo_buffer2;
+	char inFile[100];
+	char outFile[100];
 	int NoOfRec = 0;
 	const int NoOfProds = 1, NoOfWriter = 1;
 
@@ -162,10 +134,10 @@ void uMain::main(){
 
 		switch(c){
 			case 'i':
-				inFile = optarg;
+				strcpy(inFile,optarg);
 				break;
 			case 'o':
-				outFile = optarg;
+				strcpy(outFile,optarg);
 				break;
 			case 'h':
 				NoOfRec = atoi(optarg);
@@ -183,71 +155,46 @@ void uMain::main(){
 		}
 	}
 
-	BoundedBuffer buf( Largo_buffer );
-	
-	BoundedBuffer2 buf2( Largo_buffer2 );
+	BoundedBuffer buffer( Largo_buffer );
+	BoundedBuffer buffer2( Largo_buffer2 );
 	
 	Producer *prod[NoOfProds];
-	
 	Recognizer *rec[NoOfRec];
-	
 	Writer *wri[NoOfWriter];
 
+	wri[FIRST_ELEMENT] = new Writer(buffer2, outFile);
 	
-	for (int i = 0; i < NoOfWriter; i++){
-		wri[i] = new Writer(buf2, outFile);
+	for (int i = 0; i < NoOfRec; i += 1){
+		rec[i] = new Recognizer(buffer, buffer2);
+	}
+	prod[FIRST_ELEMENT] = new Producer(buffer, inFile);
+	delete prod[FIRST_ELEMENT];
+
+	for (int i = 0; i < NoOfRec; i += 1){
+		buffer.insert("-1");
 	}
 
-	for (int i = 0; i < NoOfRec; i++){
-		rec[i] = new Recognizer(buf, buf2);
-	}
-
-	for (int i = 0; i < NoOfProds; i++){
-		prod[i] = new Producer(buf, inFile);
-	}
-
-	for (int i = 0; i < NoOfProds; i++){
-		delete prod[i];
-	}
-
-	for (int i = 0; i < NoOfRec; i++){
-		buf.insert("T");
-	}
-
-	for (int i = 0; i < NoOfRec; i++){
+	for (int i = 0; i < NoOfRec; i += 1){
 		delete rec[i];
 	}
-
-	for (int i = 0; i < NoOfWriter; i++){
-		buf2.insert("T");
-	}
-
-	for (int i = 0; i < NoOfWriter; i++){
-		delete wri[i];
-	}
-
-
-
-  	return ;
+	buffer2.insert("-1");
+	delete wri[FIRST_ELEMENT];
+	
+	return ;
 }
 
-
-
-string reconocedor(string linea){
+string recognizer(string linea){
 
 	int estado_actual = 0 ;
 	bool estado(true);
 
 	while (estado){
 		for (int i = 0; i < linea.size(); i++){
-
-			//cout << linea[i];
 			switch(linea[i]){
 				case 'A':
 					if (estado_actual >= 0 && estado_actual <= 5){
 						estado_actual = 1;
 					}
-
 					if (estado_actual >= 6 && estado_actual <= 14){
 						estado_actual = 7;
 					}
@@ -257,15 +204,12 @@ string reconocedor(string linea){
 					if (estado_actual >= 0 && estado_actual <= 4){
 						estado_actual = 2;
 					}
-
 					if (estado_actual == 5){
 						estado_actual = 6;
 					}
-
 					if (estado_actual >= 6 && estado_actual <= 14 && estado_actual != 12){
 						estado_actual = 8;
 					}
-
 					if (estado_actual == 12){
 						estado_actual = 13;
 					}
@@ -275,7 +219,6 @@ string reconocedor(string linea){
 					if (estado_actual >= 0 && estado_actual <= 5){
 						estado_actual = 3;
 					}
-
 					if (estado_actual >= 6 && estado_actual <= 14){
 						estado_actual = 9;
 					}
@@ -285,23 +228,18 @@ string reconocedor(string linea){
 					if (estado_actual >= 0 && estado_actual <= 4 && estado_actual != 3){
 						estado_actual = 4;
 					}
-
 					if (estado_actual == 3 || estado_actual == 5){
 						estado_actual = 5;
 					}
-
 					if (estado_actual == 6 || estado_actual == 10){
 						estado_actual = 10;
 					}
-
 					if (estado_actual == 7 || estado_actual == 8 || estado_actual == 11){
 						estado_actual = 11;
 					}
-
 					if (estado_actual == 9 || estado_actual == 12){
 						estado_actual == 12;
 					}
-
 					if (estado_actual == 13 || estado_actual == 14){
 						estado_actual = 14;
 					}
@@ -309,19 +247,14 @@ string reconocedor(string linea){
 
 				default:
 					break;
-
-
 			}
 		}
 		if (estado_actual >= 0 && estado_actual <= 5){
-			//cout << " no"<< endl;
 			return linea + " no";
 		}
 		else {
-			//cout << " si"<< endl;
 			return linea + " si";
 		}
 		estado=false;
 	}
-
 }
