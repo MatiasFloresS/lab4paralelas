@@ -95,16 +95,16 @@ public:
 private:
 	void main(){
 		string line;
-		ofstream myfileOut(output, ios::out);
+		ofstream myfile(output);
 
-		if (myfileOut.is_open()){
+		if(myfile){
 			while(true){
 				line = Buffer2.remove();
 				if (line == "-1") break;
-				myfileOut << line <<endl;
+				myfile << line <<endl;
 			}
 		}
-		myfileOut.close();
+		myfile.close();
 	}
 };
 
