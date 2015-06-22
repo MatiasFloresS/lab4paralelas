@@ -3,19 +3,24 @@
 #include <uC++.h>
 #include <cstdlib>	
 #include <string>
+#include <sstream>
 #include <getopt.h>
 using namespace std;
 
 string reconocedor(string re);
 
-_Monitor BoundedBuffer {
+_Monitor BoundedBuffer{
 	uCondition full, empty;
 	int front, back, count;
-	string *array;
 	int tamanio;
+	string *array;
+	
 
 public:
 	BoundedBuffer(int s) : front(0), back(0), count(0), tamanio(s), array(new string[tamanio]) {}
+	~BoundedBuffer(){
+  		delete [] array;
+  	};
 	_Nomutex int query() { return count; }
 
 	void insert(string elem) {
@@ -39,11 +44,14 @@ public:
 _Monitor BoundedBuffer2 {
 	uCondition full, empty;
 	int front, back, count;
-	string *array;
 	int tamanio;
-
+	string *array;
+	
 public:
 	BoundedBuffer2(int s) : front(0), back(0), count(0), tamanio(s), array(new string[tamanio])  {}
+	~BoundedBuffer2(){
+  		delete [] array;
+  	};
 	_Nomutex int query() { return count; }
 
 	void insert(string elem) {
@@ -97,7 +105,7 @@ private:
 		string line;
 		for(;;){
 			item = Buffer.remove();
-			if (item == "T") break;
+			if (item.compare("T") == 0) break;
 			line = reconocedor(item);
 			Buffer2.insert(line);
 		}
@@ -120,7 +128,8 @@ private:
 		if (myfileOut.is_open()){
 			for(;;){
 				line = Buffer2.remove();
-				if ( line == "T") break;
+				if (line == "T") break;
+				myfileOut << line <<endl;
 			}
 		}
 		myfileOut.close();
@@ -173,16 +182,18 @@ void uMain::main(){
 				break;
 		}
 	}
- 	cout << "llego aca" << endl;
-	
+
 	BoundedBuffer buf( Largo_buffer );
+	
 	BoundedBuffer2 buf2( Largo_buffer2 );
 	
 	Producer *prod[NoOfProds];
+	
 	Recognizer *rec[NoOfRec];
+	
 	Writer *wri[NoOfWriter];
 
-	cout << "aca" << endl;
+	
 	for (int i = 0; i < NoOfWriter; i++){
 		wri[i] = new Writer(buf2, outFile);
 	}
@@ -215,6 +226,8 @@ void uMain::main(){
 		delete wri[i];
 	}
 
+
+
   	return ;
 }
 
@@ -228,7 +241,7 @@ string reconocedor(string linea){
 	while (estado){
 		for (int i = 0; i < linea.size(); i++){
 
-			cout << linea[i];
+			//cout << linea[i];
 			switch(linea[i]){
 				case 'A':
 					if (estado_actual >= 0 && estado_actual <= 5){
@@ -301,11 +314,11 @@ string reconocedor(string linea){
 			}
 		}
 		if (estado_actual >= 0 && estado_actual <= 5){
-			cout << " no"<< endl;
+			//cout << " no"<< endl;
 			return linea + " no";
 		}
 		else {
-			cout << " si"<< endl;
+			//cout << " si"<< endl;
 			return linea + " si";
 		}
 		estado=false;
